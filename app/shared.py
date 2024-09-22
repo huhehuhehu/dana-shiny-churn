@@ -6,6 +6,7 @@ try:
 except ImportError:
     import cloudpickle as pickle
 from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 
 
 _THRESHOLD = .6
@@ -44,18 +45,18 @@ def get_df_main():
 
     df['satisfaction_group'] = pd.cut(df['satisfaction_level'], bins=bins, labels=labels, right=False)
 
-    dept_map = {
-                'sales': 'Sales',
-                'accounting': 'Accounting',
-                'hr': 'Human Resources',
-                'technical': 'Technical',
-                'support': 'Support',
-                'management': 'Management',
-                'IT': 'IT',
-                'product_mng': 'Product Manager',
-                'marketing': 'Marketing',
-                'RandD': 'R&D'
-                }
+    # dept_map = {
+    #             'sales': 'Sales',
+    #             'accounting': 'Accounting',
+    #             'hr': 'Human Resources',
+    #             'technical': 'Technical',
+    #             'support': 'Support',
+    #             'management': 'Management',
+    #             'IT': 'IT',
+    #             'product_mng': 'Product Manager',
+    #             'marketing': 'Marketing',
+    #             'RandD': 'R&D'
+    #             }
     
     # left_map =  {
     #              1: 'Leaving',
@@ -63,7 +64,7 @@ def get_df_main():
     #             }
 
     
-    df['department'] = df['department'].map(dept_map)
+    # df['department'] = df['department'].map(dept_map)
     # df['left'] = df['left'].map(left_map)
     return df
 
@@ -72,6 +73,8 @@ date_parser = lambda x: datetime.datetime.strptime(x, '%d/%m/%Y')
 df_survey = pd.read_csv(app_dir / "survey.csv", parse_dates=['Date'], date_parser=date_parser)
 df_in_out = pd.read_csv(app_dir / "in_out.csv", dtype=int)
 df_main = get_df_main()
+
+_DEPT_LIST = list(df_main['department'].unique())
 
 
 
