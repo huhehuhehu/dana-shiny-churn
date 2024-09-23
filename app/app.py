@@ -25,7 +25,7 @@ ui.page_opts(title="Employees Churn Rate",
 
 
 #REACTIVE VALUE
-temp_df_main = reactive.value(beau_column_names().drop(columns = _COLS_TO_DROP))
+temp_df_main = reactive.value(beau_column_names())#.drop(columns = _COLS_TO_DROP))
 temp_df_survey = reactive.value(df_survey)
 
 #SET DARK MODE PLOTS
@@ -60,14 +60,14 @@ ui.nav_spacer()
 
 
 #KPI CARD FORMAT
-def kpi(title, num):
+def kpi(title, num, pct=False, integer=False):
     return ui.tags.div(
         ui.tags.div(
             ui.tags.p(f'{title}'),
             style = "font-size: 2rem;"
         ),
-    ui.tags.p('{0:.2f}'.format(num)),
-    style = f"font-size: 4rem; text-align: center; font-weight: bold; line-height:1; color: white;"
+    ui.tags.p('{0:.2%}'.format(num))if pct else ui.tags.p('{0:.2f}'.format(num)) if not integer else ui.tags.p('{0}'.format(num)),
+    style = f"font-size: 4.5rem; text-align: center; font-weight: bold; line-height:1.2; color: white;"
     )
 
 
@@ -105,7 +105,17 @@ with ui.nav_panel("Overview"):
                         ax = sns.barplot(x='department', y='satisfaction_level', data=temp_stay, color='green', label='Staying')
                         sns.barplot(x='department', y='satisfaction_level', data=temp_leave, color='red', label='Leaving', bottom=temp[temp['Leaving/Staying'] == 'Staying']['satisfaction_level'].values)
 
-                        ax.bar_label(ax.containers[0], fmt='%d', label_type='center')
+                        for i, bar in enumerate(ax.containers[0]):  
+
+                            height = bar.get_height()
+                            ax.text(
+                                bar.get_x() + bar.get_width() / 2, 
+                                height,                            
+                                f'{height:.0f}',                    
+                                ha='center', va='bottom'           
+                            )
+
+                        # ax.bar_label(ax.containers[0], fmt='%d', label_type='center')
 
 
                     
@@ -124,8 +134,18 @@ with ui.nav_panel("Overview"):
                         plt.legend()
                     else:
                         ax = sns.barplot(temp, x='department', y='satisfaction_level',estimator='sum', errorbar=None, palette=colors)
-                        ax.bar_label(ax.containers[0])
+                        # ax.bar_label(ax.containers[0])
+                        for bar in ax.patches:
+                            height = bar.get_height()
+                            ax.text(
+                                bar.get_x() + bar.get_width() / 2, 
+                                height,                            
+                                f'{height:.0f}',                    
+                                ha='center', va='bottom'           
+                            )
+
                         ax.set_title('Total employees in each department')
+                        
 
                     ax.set_xlabel("")
                     ax.set_ylabel("")
@@ -302,23 +322,47 @@ with ui.nav_panel("Deep Dive"):
                                     style="font-weight: bold; font-style: italic;color: white; line-height: 0; text-align: right;"
                                 )
 
-                            with ui.card(full_screen=True, height="45%"):
-                                ui.tags.div(
+                            result_explanation = reactive.value([])
+
+                            @reactive.effect
+                            @reactive.event(input.predict)
+                            def explain():
+                                pos = [
                                     ui.tags.h4('Happening most like due to (xxxxxxxxxx)'),
                                     ui.tags.h4('Current reported satisfaction score (xxxxxxxxxx)'),
                                     ui.tags.h4('Check on (xxxxxxxxxxxxxxx)'),
                                     ui.tags.h4('Reduce (xxxxxxxx) to (xxxxxxxxxxxxx)'),
                                     ui.tags.h4('Increase effort on (xxxxxxxxxxxxx)'),
-                                )
+                                ]
+                                
+                                result_explanation.set(random.sample(pos, random.randint(1,len(pos))))
+
+                            with ui.card(full_screen=True, height="45%"):
+                                
+                                @render.ui
+                                def result_explanation_text():
+                                    return ui.tags.div(
+                                        *result_explanation()
+                                    )
                                 
                 ############################################
-                #SURVEY RESULT PANEL
+                #BREAKDOWN PANEL
                 ############################################
-                with ui.nav_panel('Surveys'):
-                    with ui.layout_columns(col_widths=(2,10)):
+                with ui.nav_panel('Breakdown'):
 
-                        with ui.card(fillable=True):
-                            ui.input_select('dept_3', 'Department', _DEPT_LIST)
+                    with ui.layout_sidebar(fillable=True):
+
+                        #FILTERS
+                        with ui.sidebar():
+                            
+                            ui.tags.h5('Tabs')
+                            ui.input_select('tabs', None, ['Surveys', 'Employees'])
+
+                            ui.tags.br()
+
+                            ui.tags.h5('Filters')
+
+                            ui.input_checkbox_group('dept_3', 'Department', _DEPT_LIST, selected=_DEPT_LIST)
                             ui.input_slider("pct_slider_2", "Chance to Leave (%)", min=0, max=100, value=(0, 100), step=1)
                             ui.input_date_range('dt_rng_2', 'Date Range', start=df_survey['Date'].min(), end=df_survey['Date'].max(), min=df_survey['Date'].min(), max=df_survey['Date'].max())
 
@@ -335,59 +379,55 @@ with ui.nav_panel("Deep Dive"):
                                 #SURVEY SIDE
                                 temp_df = df_survey.copy()
 
-                                input_list = {
-                                    'Department': input.dept_3()
-                                }
+                                if input.dept_3():
+                                    temp_df = temp_df[temp_df['Department'].isin(list(input.dept_3()))]
 
-                                filters = ' & '.join([f"(temp_df['{k}'].astype(str).str.contains('{v}', case=False))" for k, v in input_list.items() if pd.notna(v)])
-
-                                temp_df = temp_df[eval(filters) & temp_df['Date'].between(pd.to_datetime(input.dt_rng_2()[0]) or df_survey['Date'].min(),pd.to_datetime(input.dt_rng_2()[1]) or df_survey['Date'].max())]
+                                temp_df = temp_df[temp_df['Date'].between(pd.to_datetime(input.dt_rng_2()[0]) or df_survey['Date'].min(),pd.to_datetime(input.dt_rng_2()[1]) or df_survey['Date'].max())]
 
                                 temp_df_survey.set(temp_df)
 
                                 #MAIN SIDE
                                 temp_df = beau_column_names()
 
-                                input_list = {
-                                            'Department': input.dept_3()
-                                            }
+                                if input.dept_3():
+                                    temp_df = temp_df[temp_df['Department'].isin(list(input.dept_3()))]
 
-                                filters = ' & '.join([f"(temp_df['{k}'].astype(str).str.contains('{v}', case=False))" for k,v in input_list.items() if pd.notna(v)])
-                                filters+=f" & temp_df['Probability of Leaving'].between({input.pct_slider_2()[0]/200.0},{input.pct_slider_2()[1]/100.0})"
-
-                                temp_df = temp_df[eval(filters)].drop(columns = _COLS_TO_DROP)
+                                temp_df = temp_df[temp_df['Probability of Leaving'].between(input.pct_slider_2()[0]/200.0,input.pct_slider_2()[1]/100.0)]#.drop(columns = _COLS_TO_DROP)
 
                                 temp_df_main.set(temp_df)
 
 
-                        
-                        with ui.card(fillable=True, height='25%'):
-                            ui.card_header('Average Score on Each Driver')
-                            with ui.layout_columns(col_widths=(3,3,3,3)):
-                                with ui.card(fillable=True):
-                                    @render.ui
-                                    def kpi1():
-                                        return kpi('Work-Life Balance', temp_df_survey()['Work-Life Balance'].mean())                                
+                        with ui.navset_hidden(id="hidden_tabs"):
+                            #################################################################
+                            #SURVEY BREAKDOWN
+                            #################################################################
+                            with ui.nav_panel(None, value="Surveys"):
 
                                 with ui.card(fillable=True):
-                                    @render.ui
-                                    def kpi2():
-                                        return kpi('Workload', temp_df_survey()['Workload'].mean())
+                                    ui.card_header('Average Score on Each Driver')
+                                    with ui.layout_columns(col_widths=(3,3,3,3)):
+                                        with ui.card(fillable=True):
+                                            @render.ui
+                                            def kpi1():
+                                                return kpi('Work-Life Balance', temp_df_survey()['Work-Life Balance'].mean())                                
+
+                                        with ui.card(fillable=True):
+                                            @render.ui
+                                            def kpi2():
+                                                return kpi('Workload', temp_df_survey()['Workload'].mean())
+
+                                        with ui.card(fillable=True):
+                                            @render.ui
+                                            def kpi3():
+                                                return kpi('Management', temp_df_survey()['Management'].mean())
+                                        
+                                        with ui.card(fillable=True):
+                                            @render.ui
+                                            def kpi4():
+                                                return kpi('Career Progression', temp_df_survey()['Growth Opportunities'].mean())
 
                                 with ui.card(fillable=True):
-                                    @render.ui
-                                    def kpi3():
-                                        return kpi('Management', temp_df_survey()['Management'].mean())
-                                
-                                with ui.card(fillable=True):
-                                    @render.ui
-                                    def kpi4():
-                                        return kpi('Career Progression', temp_df_survey()['Growth Opportunities'].mean())
-
-                            with ui.card(fillable=True, height='75%'):
-                                with ui.layout_columns(col_widths=(4,8)):
-                                    with ui.card(fillable=True):
-
+                                    with ui.layout_columns(col_widths=(4,8)):
                                         with ui.card(fillable=True):
 
                                             worst = reactive.value('IT')
@@ -425,16 +465,181 @@ with ui.nav_panel("Deep Dive"):
                                                     style = f"font-size: 3em; text-align: center; font-weight: bold; line-height:1.3; color: white;, overflow: hidden;"
                                                     )
 
-                                    with ui.card(fillable=True):
-                                        @render.plot
-                                        def kp():
-                                            temp_df = temp_df_survey().copy()
-                                            temp_df = temp_df[['Department', 'Work-Life Balance','Salary','Management','Workload','Growth Opportunities']].groupby('Department').mean().reset_index()
+                                        with ui.card(fillable=True):
+                                            @render.plot
+                                            def kp():
+                                                temp_df = temp_df_survey().copy()
+                                                temp_df = temp_df[['Department', 'Work-Life Balance','Salary','Management','Workload','Growth Opportunities']].groupby('Department').mean().reset_index()
 
-                                            ax = temp_df.plot(kind='bar', x='Department')
-                                            ax.set_xlabel('')
-                                            ax.set_xticklabels(list(temp_df['Department'].unique()),rotation=45, ha='right')
-                                            return ax
+                                                ax = temp_df.plot(kind='bar', x='Department')
+                                                ax.set_xlabel('')
+                                                ax.set_xticklabels(list(temp_df['Department'].unique()),rotation=45, ha='right')
+                                                return ax
+
+                            #################################################################
+                            #EMPLOYEE BREAKDOWN
+                            #################################################################
+                            with ui.nav_panel(None, value="Employees"):
+                                with ui.card(fillable=True, height="100%"):
+                                    with ui.card(fillable=True):
+                                        with ui.layout_columns(col_widths=(3,9,9,3)):
+
+                                            _HT = "34rem"
+
+                                            with ui.card(fillable=True, height=_HT):
+                                                with ui.card(fillable=True, height="47%"):
+                                                    _OVER_THRESHOLD = 240
+
+                                                    @render.ui
+                                                    def kpi7():
+
+                                                        ovw = temp_df_main()[temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD]['Employee ID'].count()
+                                                        total = temp_df_main()['Employee ID'].count()
+                                                        
+                                                        return kpi('% Overworked', ovw/total, pct=True)
+                                                    
+                                                    ui.card_footer(f'*overworking defined as working more than {_OVER_THRESHOLD} hours a month')
+
+                                                with ui.card(fillable=True, height="53%"):
+                                                    @render.ui
+                                                    def kpi8():
+
+                                                        ovw = temp_df_main()[(temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD) & (temp_df_main()['salary_group'] == 1)]['Employee ID'].count()
+
+                                                        return kpi('Overworked & Low Salary', ovw, integer=True)
+
+                                                    ui.card_footer(f'*low salary defined as salary less than 12,000,000 per month')
+                                                    
+
+
+                                            @render.plot
+                                            def work_hours_plot():
+                                                temp_df = temp_df_main().copy()
+
+                                                temp_df = temp_df[['Department','Average Hours Worked (Monthly)']].groupby('Department').mean().reset_index()
+
+                                                ax = sns.barplot(data=temp_df, palette=colors, x='Department', y='Average Hours Worked (Monthly)')
+
+                                                ax.set_title('Average Hours Worked per Employee per Month')
+                                                for bar in ax.patches:
+                                                    height = bar.get_height()
+                                                    ax.text(
+                                                        bar.get_x() + bar.get_width() / 2, 
+                                                        height,                            
+                                                        f'{height:.2f}',                    
+                                                        ha='center', va='bottom'           
+                                                    )
+                                                ax.set_xlabel(None)
+                                                ax.set_ylabel(None)
+
+                                                return ax
+
+                                            @render.plot
+                                            def plot987():
+                                                temp_df = temp_df_main().copy()
+
+                                                temp_df = temp_df[['Department','Average Hours Worked (Monthly)']].groupby('Department').mean().reset_index()
+
+                                                ax = sns.barplot(data=temp_df, palette=colors, x='Department', y='Average Hours Worked (Monthly)')
+
+                                                ax.set_title('Average Hours Worked per Employee per Month')
+                                                for bar in ax.patches:
+                                                    height = bar.get_height()
+                                                    ax.text(
+                                                        bar.get_x() + bar.get_width() / 2, 
+                                                        height,                            
+                                                        f'{height:.2f}',                    
+                                                        ha='center', va='bottom'           
+                                                    )
+                                                ax.set_xlabel(None)
+                                                ax.set_ylabel(None)
+
+                                                return ax
+
+                                            with ui.card(fillable=True, height=_HT):
+                                                with ui.card(fillable=True, height="47%"):
+                                                    _OVER_THRESHOLD = 240
+
+                                                    @render.ui
+                                                    def kpi9():
+
+                                                        ovw = temp_df_main()[temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD]['Employee ID'].count()
+                                                        total = temp_df_main()['Employee ID'].count()
+                                                        
+                                                        return kpi('% Overworked', ovw/total, pct=True)
+                                                    
+                                                    ui.card_footer(f'*overworking defined as working more than {_OVER_THRESHOLD} hours a month')
+
+                                                with ui.card(fillable=True, height="53%"):
+                                                    @render.ui
+                                                    def kpi10():
+
+                                                        ovw = temp_df_main()[(temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD) & (temp_df_main()['salary_group'] == 1)]['Employee ID'].count()
+
+                                                        return kpi('Overworked & Low Salary', ovw, integer=True)
+
+                                                    ui.card_footer(f'*low salary defined as salary less than 12,000,000 per month')
+                                            
+                                            with ui.card(fillable=True, height=_HT):
+                                                with ui.card(fillable=True, height="47%"):
+                                                    _OVER_THRESHOLD = 240
+
+                                                    @render.ui
+                                                    def kpi11():
+
+                                                        ovw = temp_df_main()[temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD]['Employee ID'].count()
+                                                        total = temp_df_main()['Employee ID'].count()
+                                                        
+                                                        return kpi('% Overworked', ovw/total, pct=True)
+                                                    
+                                                    ui.card_footer(f'*overworking defined as working more than {_OVER_THRESHOLD} hours a month')
+
+                                                with ui.card(fillable=True, height="53%"):
+                                                    @render.ui
+                                                    def kpi12():
+
+                                                        ovw = temp_df_main()[(temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD) & (temp_df_main()['salary_group'] == 1)]['Employee ID'].count()
+
+                                                        return kpi('Overworked & Low Salary', ovw, integer=True)
+
+                                                    ui.card_footer(f'*low salary defined as salary less than 12,000,000 per month')
+                                                    
+
+                                                    
+
+
+                                            @render.plot
+                                            def plot123():
+                                                temp_df = temp_df_main().copy()
+
+                                                temp_df = temp_df[['Department','Average Hours Worked (Monthly)']].groupby('Department').mean().reset_index()
+
+                                                ax = sns.barplot(data=temp_df, palette=colors, x='Department', y='Average Hours Worked (Monthly)')
+
+                                                ax.set_title('Average Hours Worked per Employee per Month')
+                                                for bar in ax.patches:
+                                                    height = bar.get_height()
+                                                    ax.text(
+                                                        bar.get_x() + bar.get_width() / 2, 
+                                                        height,                            
+                                                        f'{height:.2f}',                    
+                                                        ha='center', va='bottom'           
+                                                    )
+                                                ax.set_xlabel(None)
+                                                ax.set_ylabel(None)
+
+                                                return ax
+
+
+                        @reactive.effect
+                        @reactive.event(input.tabs)
+                        def _():
+                            ui.update_navs("hidden_tabs", selected=input.tabs())
+
+
+
+
+
 #####################################################################################################################################################
 #THIRD PAGE
 #####################################################################################################################################################
@@ -450,7 +655,7 @@ with ui.nav_panel("Raw Data"):
                     with ui.card(fillable=True):
                         ui.input_text('name_1','Employee Name')
                         ui.input_numeric('id_1', 'Employee ID', None)
-                        ui.input_select('dept_1', 'Department', _DEPT_LIST)
+                        ui.input_checkbox_group('dept_1', 'Department', _DEPT_LIST, selected= _DEPT_LIST)
                         ui.input_slider("pct_slider_1", "Chance to Leave (%)", min=0, max=100, value=(0, 100), step=1, ticks=True)
 
                         ui.input_action_button('filter_main', 'Apply Filter')
@@ -469,14 +674,22 @@ with ui.nav_panel("Raw Data"):
 
                     input_list = {
                                 'Employee Name': input.name_1(),
-                                'Employee ID': input.id_1(),
-                                'Department': input.dept_1()
+                                'Employee ID': input.id_1()
                                 }
+
+                    ui.update_checkbox_group('dept_3', selected = input.dept_1())
+                    ui.update_checkbox_group('dept_2', selected = input.dept_1())
+                    ui.update_slider('pct_slider_2', value=(input.pct_slider_1()[0], input.pct_slider_1()[1]))
+
 
                     filters = ' & '.join([f"(temp_df['{k}'].astype(str).str.contains('{v}', case=False))" for k,v in input_list.items() if pd.notna(v)])
                     filters+=f" & temp_df['Probability of Leaving'].between({input.pct_slider_1()[0]/100.0},{input.pct_slider_1()[1]/100.0})"
 
-                    temp_df = temp_df[eval(filters)].drop(columns = _COLS_TO_DROP)
+                    if input.dept_1():
+                        temp_df = temp_df[temp_df['Department'].isin(list(input.dept_1()))]
+                        temp_df_survey.set(temp_df_survey()[temp_df_survey()['Department'].isin(list(input.dept_1()))])
+
+                    temp_df = temp_df[eval(filters)]#.drop(columns = _COLS_TO_DROP)
 
                     temp_df_main.set(temp_df)
 
@@ -487,7 +700,7 @@ with ui.nav_panel("Raw Data"):
                     def plot_df_main():
                         
                         return (
-                            temp_df_main().head(100).style.set_table_attributes(
+                            temp_df_main().drop(columns = _COLS_TO_DROP).head(100).style.set_table_attributes(
                                     'class="dataframe shiny-table table w-auto"'
                                 )
                                 .hide(axis="index")
@@ -517,7 +730,7 @@ with ui.nav_panel("Raw Data"):
                         ui.input_text('name_2', 'Employee Name')
                         ui.input_numeric('id_2', 'Employee ID', None)
                         ui.input_date_range('dt_rng_1', 'Date Range', start=df_survey['Date'].min(), end=df_survey['Date'].max(), min=df_survey['Date'].min(), max=df_survey['Date'].max())
-                        ui.input_select('dept_2', 'Department', _DEPT_LIST)
+                        ui.input_checkbox_group('dept_2', 'Department', _DEPT_LIST, selected=_DEPT_LIST)
                         ui.input_action_button('filter_survey', 'Apply Filter')
 
                     with ui.card(fillable=True, max_height='4.5rem'):
@@ -534,12 +747,20 @@ with ui.nav_panel("Raw Data"):
                     input_list = {
                         'Employee Name': input.name_2(),
                         'Employee ID': input.id_2(),
-                        'Department': input.dept_2()
                     }
 
-                    filters = ' & '.join([f"(temp_df['{k}'].astype(str).str.contains('{v}', case=False))" for k, v in input_list.items() if pd.notna(v)])
-                    
+                    ui.update_checkbox_group('dept_1', selected = input.dept_2())
+                    ui.update_checkbox_group('dept_3', selected = input.dept_2())
 
+                    ui.update_date_range('dt_rng_2', start=input.dt_rng_1()[0], end=input.dt_rng_1()[1])
+
+
+                    filters = ' & '.join([f"(temp_df['{k}'].astype(str).str.contains('{v}', case=False))" for k, v in input_list.items() if pd.notna(v)])
+                    filters += f" & (temp_df['Department'].isin({list(input.dept_2())}))" if not input.dept_2() else ''
+
+                    if input.dept_2():
+                        temp_df = temp_df[temp_df['Department'].isin(list(input.dept_2()))]
+                        temp_df_main.set(temp_df_main()[temp_df_main()['Department'].isin(list(input.dept_2()))])
 
                     temp_df = temp_df[eval(filters) & temp_df['Date'].between(pd.to_datetime(input.dt_rng_1()[0]) or df_survey['Date'].min(),pd.to_datetime(input.dt_rng_1()[1]) or df_survey['Date'].max())]
 

@@ -1,4 +1,4 @@
-id,name,time_spend_company,number_project,average_monthly_hours,satisfaction_level,last_evaluation,promotion_last_5years,work_accident,department,salary,gone
+id,name,time_spend_company,number_project,average_monthly_hours,satisfaction_level,last_evaluation,promotion_last_5years,work_accident,department,salary_amount,gone
 103124,Deborah Robbins,3.223535487,2,157,3.8,5.3,False,False,Sales,9144871,False
 107944,Kelsey Fields,6.078620018,5,262,8.0,8.6,False,False,Sales,12299909,False
 110478,Michael Carter,4.138678515,7,272,1.1,8.8,False,False,Sales,15654345,False

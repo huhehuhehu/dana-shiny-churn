@@ -22,7 +22,7 @@ with open(app_dir / 'fitted_scaler.pkl', 'rb') as f:
 #PROCESS df_main:
 def get_df_main():
 
-    df = pd.read_csv(app_dir / "rawraw.csv")
+    df = pd.read_csv(app_dir / "rawraw.csv", dtype= {'average_monthly_hours': float, 'last_evaluation': float, 'time_spend_company': float, 'salary': int})
 
     def transform_row(row):
         return {
@@ -32,13 +32,14 @@ def get_df_main():
             'average_monthly_hours': row['average_monthly_hours'],
             'time_spend_company': row['time_spend_company'],
             'promotion_last_5years': 1 if row['promotion_last_5years'] else 0,
-            'salary': 0 if row['salary'] < 12000000 else 1 if row['salary'] < 20000000 else 2
+            'salary': 0 if row['salary_amount'] < 12000000 else 1 if row['salary_amount'] < 20000000 else 2
         }
 
     transformed_df = df.apply(transform_row, axis=1, result_type='expand')
 
     df['prob'] = model.predict_proba(scaler.transform(transformed_df))[:,1]
     df['Leaving/Staying'] = df['prob'].apply(lambda x: 'Staying' if x < _THRESHOLD else 'Leaving')
+    df['salary_group'] = transformed_df['salary'].astype(int)
 
     bins = [0, 5, 7, 10] 
     labels = ['Bad', 'Neutral', 'Good']
@@ -103,7 +104,7 @@ def beau_column_names(which_one=True):
             'work_accident': 'Logged Work Accident',
             'average_monthly_hours': 'Average Hours Worked (Monthly)',
             'promotion_last_5years': 'Promoted within last 5 years',
-            'salary': 'Salary',
+            'salary_amount': 'Salary',
             'prob': 'Probability of Leaving',
             'department': 'Department'
     }
@@ -114,5 +115,6 @@ def beau_column_names(which_one=True):
 _COLS_TO_DROP = [
                 'gone',
                 'satisfaction_group',
-                'Leaving/Staying'
+                'Leaving/Staying',
+                'salary_group'
                 ]
