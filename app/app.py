@@ -277,6 +277,10 @@ with ui.nav_panel("Deep Dive"):
                                     ui.input_action_button('predict', 'Predict!', width="100%"),
                                     style= "margin-top:2rem;"
                                 )
+                            ui.div(
+                                ui.card_footer('*model created using XGBoost Classifier, achieving 97% accuracy on the test dataset'),
+                                style="font-weight: bold; font-style: italic;color: white; line-height: 0; text-align: right;"
+                            )
 
                         with ui.card(full_screen=True):
                             with ui.card(full_screen=True, height="55%"):
