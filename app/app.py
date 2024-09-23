@@ -1,7 +1,7 @@
 from shiny import reactive
 from shiny.express import input, render, ui
 from shared import df_main, df_survey, model, process_inputs, beau_column_names, df_in_out
-from shared import _THRESHOLD, _COLS_TO_DROP, _DEPT_LIST
+from shared import _THRESHOLD, _COLS_TO_DROP, _DEPT_LIST, _THRESHOLD
 from shinywidgets import render_plotly
 import shinyswatch
 import datetime
@@ -27,6 +27,10 @@ ui.page_opts(title="Employees Churn Rate",
 #REACTIVE VALUE
 temp_df_main = reactive.value(beau_column_names())#.drop(columns = _COLS_TO_DROP))
 temp_df_survey = reactive.value(df_survey)
+
+_MAIN_FILTER_NOT_GONE = "~temp_df_main()['Departed']"
+
+
 
 #SET DARK MODE PLOTS
 custom_style = {
@@ -95,7 +99,7 @@ with ui.nav_panel("Overview"):
                 @reactive.event(input.stackswitch)
                 def plot_1():
                     
-                    temp = df_main[df_main['gone'] == 0][['department','satisfaction_level', 'Leaving/Staying']].groupby(['department', 'Leaving/Staying']).count().reset_index()
+                    temp = df_main[~df_main['gone']][['department','satisfaction_level', 'Leaving/Staying']].groupby(['department', 'Leaving/Staying']).count().reset_index()
 
                     if input.stackswitch():
                         temp_stay = temp[temp['Leaving/Staying'] == 'Staying']
@@ -153,7 +157,7 @@ with ui.nav_panel("Overview"):
                     return ax
                 
                 ui.div(
-                    ui.card_footer('*Prediction based on past 10 years employees data, and is flagged as "Leaving" when the calculated probability exceeds 40%. Salaries adjusted for inflation.'),
+                    ui.card_footer(f'*Prediction based on past 10 years employees data, and is flagged as "Leaving" when the calculated probability exceeds {_THRESHOLD:.0%}. Salaries adjusted for inflation.'),
                     style="font-weight: bold; font-style: italic;background-color: black; color: white; margin-bottom:-15px; width: 100%; text-align: right;"
                 )
 
@@ -392,7 +396,7 @@ with ui.nav_panel("Deep Dive"):
                                 if input.dept_3():
                                     temp_df = temp_df[temp_df['Department'].isin(list(input.dept_3()))]
 
-                                temp_df = temp_df[temp_df['Probability of Leaving'].between(input.pct_slider_2()[0]/200.0,input.pct_slider_2()[1]/100.0)]#.drop(columns = _COLS_TO_DROP)
+                                temp_df = temp_df[temp_df['Probability of Leaving'].between(input.pct_slider_2()[0]/200.0,input.pct_slider_2()[1]/100.0) | pd.isna(temp_df['Probability of Leaving'])]
 
                                 temp_df_main.set(temp_df)
 
@@ -493,8 +497,8 @@ with ui.nav_panel("Deep Dive"):
                                                     @render.ui
                                                     def kpi7():
 
-                                                        ovw = temp_df_main()[temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD]['Employee ID'].count()
-                                                        total = temp_df_main()['Employee ID'].count()
+                                                        ovw = temp_df_main()[eval(_MAIN_FILTER_NOT_GONE) & (temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD)]['Employee ID'].count()
+                                                        total = temp_df_main()[eval(_MAIN_FILTER_NOT_GONE)]['Employee ID'].count()
                                                         
                                                         return kpi('% Overworked', ovw/total, pct=True)
                                                     
@@ -504,7 +508,7 @@ with ui.nav_panel("Deep Dive"):
                                                     @render.ui
                                                     def kpi8():
 
-                                                        ovw = temp_df_main()[(temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD) & (temp_df_main()['salary_group'] == 1)]['Employee ID'].count()
+                                                        ovw = temp_df_main()[eval(_MAIN_FILTER_NOT_GONE) & (temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD) & (temp_df_main()['salary_group'] == 1)]['Employee ID'].count()
 
                                                         return kpi('Overworked & Low Salary', ovw, integer=True)
 
@@ -514,7 +518,7 @@ with ui.nav_panel("Deep Dive"):
 
                                             @render.plot
                                             def work_hours_plot():
-                                                temp_df = temp_df_main().copy()
+                                                temp_df = temp_df_main()[eval(_MAIN_FILTER_NOT_GONE)].copy()
 
                                                 temp_df = temp_df[['Department','Average Hours Worked (Monthly)']].groupby('Department').mean().reset_index()
 
@@ -536,7 +540,7 @@ with ui.nav_panel("Deep Dive"):
 
                                             @render.plot
                                             def plot987():
-                                                temp_df = temp_df_main().copy()
+                                                temp_df = temp_df_main()[eval(_MAIN_FILTER_NOT_GONE)].copy()
 
                                                 temp_df = temp_df[['Department','Average Hours Worked (Monthly)']].groupby('Department').mean().reset_index()
 
@@ -653,6 +657,7 @@ with ui.nav_panel("Raw Data"):
 
                 with ui.card(fillable=True):
                     with ui.card(fillable=True):
+                        ui.input_checkbox("include_gone", "Include Past Employees", False)
                         ui.input_text('name_1','Employee Name')
                         ui.input_numeric('id_1', 'Employee ID', None)
                         ui.input_checkbox_group('dept_1', 'Department', _DEPT_LIST, selected= _DEPT_LIST)
@@ -664,8 +669,11 @@ with ui.nav_panel("Raw Data"):
                         
                         @render.download(filename='employee_data.csv', label='export to csv')
                         def download_main():
-    
-                            yield temp_df_main().to_csv(index=False)
+                            
+                            if input.include_gone():
+                                yield temp_df_main().drop(columns=_COLS_TO_DROP).to_csv(index=False)
+                            else:
+                                yield temp_df_main()[(eval(_MAIN_FILTER_NOT_GONE))].drop(columns=_COLS_TO_DROP).to_csv(index=False)
                         
                 @reactive.effect
                 @reactive.event(input.filter_main)
@@ -683,24 +691,38 @@ with ui.nav_panel("Raw Data"):
 
 
                     filters = ' & '.join([f"(temp_df['{k}'].astype(str).str.contains('{v}', case=False))" for k,v in input_list.items() if pd.notna(v)])
-                    filters+=f" & temp_df['Probability of Leaving'].between({input.pct_slider_1()[0]/100.0},{input.pct_slider_1()[1]/100.0})"
+                    filters+=f" & (temp_df['Probability of Leaving'].between({input.pct_slider_1()[0]/100.0},{input.pct_slider_1()[1]/100.0}) | pd.isna(temp_df['Probability of Leaving']))"
+    
+
 
                     if input.dept_1():
                         temp_df = temp_df[temp_df['Department'].isin(list(input.dept_1()))]
                         temp_df_survey.set(temp_df_survey()[temp_df_survey()['Department'].isin(list(input.dept_1()))])
 
-                    temp_df = temp_df[eval(filters)]#.drop(columns = _COLS_TO_DROP)
+                    temp_df = temp_df[eval(filters)]
 
                     temp_df_main.set(temp_df)
 
 
 
                 with ui.card(fillable=True):
+
+                    ui.div(
+                        ui.card_header('*showing maximum of 100 rows'),
+                        style="font-weight: bold; font-style: italic;background-color: black; color: white; margin-bottom:-15px; width: 100%; text-align: right;"
+                    )
+
                     @render.table
                     def plot_df_main():
+                        def highlight_rows(row):
+                            color = 'background-color: #DC143C' if row['Probability of Leaving'] > _THRESHOLD else ''
+                            return [color] * len(row)
                         
+                        temp_df = temp_df_main() if input.include_gone() else temp_df_main()[eval(_MAIN_FILTER_NOT_GONE)]
+
+
                         return (
-                            temp_df_main().drop(columns = _COLS_TO_DROP).head(100).style.set_table_attributes(
+                            temp_df.drop(columns = _COLS_TO_DROP).head(100).style.set_table_attributes(
                                     'class="dataframe shiny-table table w-auto"'
                                 )
                                 .hide(axis="index")
@@ -710,14 +732,16 @@ with ui.nav_panel("Raw Data"):
                                         "Years since Onboarding": "{0:0.2f}",
                                         "Last Evaluation Score": "{0:0.2f}",
                                         "Salary": "{0:,}",
-                                        "Probability of Leaving": "{0:.2%}"
+                                        "Probability of Leaving": lambda x: "{:.2%}".format(x) if not pd.isna(x) else "N/A",
+                                        "Average Hours Worked (Monthly)": "{0:.0f}",
 
-                                    }
+                                    },
                                 )
                                 .set_table_styles(
                                     [dict(selector="th", props=[("text-align", "left")])]
-                                )
+                                ).apply(highlight_rows, axis=1)
                             )
+                            
       
         ######################################
         # SURVEY TABLE
@@ -767,6 +791,14 @@ with ui.nav_panel("Raw Data"):
                     temp_df_survey.set(temp_df)
 
                 with ui.card(fillable=True):
+
+                    ui.div(
+                        ui.card_header('*showing maximum of 100 rows'),
+                        style="font-weight: bold; font-style: italic;background-color: black; color: white; margin-bottom:-15px; width: 100%; text-align: right;"
+                    )
+
                     @render.table
                     def plot_df_survey():
                         return temp_df_survey().head(100)
+                    
+                    

@@ -7,6 +7,7 @@ except ImportError:
     import cloudpickle as pickle
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
+import numpy as np
 
 
 _THRESHOLD = .6
@@ -38,6 +39,8 @@ def get_df_main():
     transformed_df = df.apply(transform_row, axis=1, result_type='expand')
 
     df['prob'] = model.predict_proba(scaler.transform(transformed_df))[:,1]
+    df['prob'] = df.apply(lambda x: None if x['gone'] else x['prob'], axis=1)
+
     df['Leaving/Staying'] = df['prob'].apply(lambda x: 'Staying' if x < _THRESHOLD else 'Leaving')
     df['salary_group'] = transformed_df['salary'].astype(int)
 
@@ -106,14 +109,15 @@ def beau_column_names(which_one=True):
             'promotion_last_5years': 'Promoted within last 5 years',
             'salary_amount': 'Salary',
             'prob': 'Probability of Leaving',
-            'department': 'Department'
+            'department': 'Department',
+            'gone': 'Departed'
     }
 
     return df_main.rename(columns = rename_dict)
 
 
 _COLS_TO_DROP = [
-                'gone',
+                # 'gone',
                 'satisfaction_group',
                 'Leaving/Staying',
                 'salary_group'
