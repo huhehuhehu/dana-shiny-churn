@@ -77,6 +77,7 @@ date_parser = lambda x: datetime.datetime.strptime(x, '%d/%m/%Y')
 df_survey = pd.read_csv(app_dir / "survey.csv", parse_dates=['Date'], date_parser=date_parser)
 df_in_out = pd.read_csv(app_dir / "in_out.csv", dtype=int)
 df_main = get_df_main()
+df_salaries = pd.read_csv(app_dir / "salaries.csv")
 
 _DEPT_LIST = list(df_main['department'].unique())
 

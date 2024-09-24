@@ -1,6 +1,6 @@
 from shiny import reactive
 from shiny.express import input, render, ui
-from shared import df_main, df_survey, model, process_inputs, beau_column_names, df_in_out
+from shared import df_main, df_survey, model, process_inputs, beau_column_names, df_in_out,df_salaries
 from shared import _THRESHOLD, _COLS_TO_DROP, _DEPT_LIST, _THRESHOLD
 from shinywidgets import render_plotly
 import shinyswatch
@@ -157,7 +157,7 @@ with ui.nav_panel("Overview"):
                     return ax
                 
                 ui.div(
-                    ui.card_footer(f'*Prediction based on past 10 years employees data, and is flagged as "Leaving" when the calculated probability exceeds {_THRESHOLD:.0%}. Salaries adjusted for inflation.'),
+                    ui.card_footer(f'*Prediction based on past 10 years employees data, and is flagged as "Leaving" when the calculated probability exceeds {_THRESHOLD:.0%}. Salaries adjusted for inflation and industry/title average.'),
                     style="font-weight: bold; font-style: italic;background-color: black; color: white; margin-bottom:-15px; width: 100%; text-align: right;"
                 )
 
@@ -514,10 +514,9 @@ with ui.nav_panel("Deep Dive"):
 
                                                         ovw = temp_df_main()[eval(_MAIN_FILTER_NOT_GONE) & (temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD) & (temp_df_main()['salary_group'] == 1)]['Employee ID'].count()
 
-                                                        return kpi('Overworked & Low Salary', ovw, integer=True)
+                                                        return kpi('Overworked & Underpaid', ovw, integer=True)
 
-                                                    ui.card_footer(f'*low salary defined as salary less than 12,000,000 per month')
-                                                    
+                                                    ui.card_footer(f'*salary classification adjusted to industry/title average on the particular year', style="font-size:.8rem;")
 
 
                                             @render.plot
@@ -543,25 +542,37 @@ with ui.nav_panel("Deep Dive"):
                                                 return ax
 
                                             @render.plot
-                                            def plot987():
-                                                temp_df = temp_df_main()[eval(_MAIN_FILTER_NOT_GONE)].copy()
+                                            def plot_salaries():
+                                                temp_df = df_salaries.copy()
 
-                                                temp_df = temp_df[['Department','Average Hours Worked (Monthly)']].groupby('Department').mean().reset_index()
+                                                fig, ax = plt.subplots(figsize=(16, 9))
 
-                                                ax = sns.barplot(data=temp_df, palette=colors, x='Department', y='Average Hours Worked (Monthly)')
+                                                
+                                                ax.bar(temp_df['year'], temp_df['low'], label='Low', color='#FF4500')
+                                                ax.bar(temp_df['year'], temp_df['standard'], bottom=temp_df['low'], label='Standard', color = '#FFD700')
+                                                ax.bar(temp_df['year'], temp_df['high'], bottom=temp_df['low'] + temp_df['standard'], label='High', color='#32CD32')
 
-                                                ax.set_title('Average Hours Worked per Employee per Month')
-                                                for bar in ax.patches:
-                                                    height = bar.get_height()
-                                                    ax.text(
-                                                        bar.get_x() + bar.get_width() / 2, 
-                                                        height,                            
-                                                        f'{height:.2f}',                    
-                                                        ha='center', va='bottom'           
-                                                    )
+                                                
+                                                for i in range(len(temp_df)):
+                                                
+                                                    ax.text(temp_df['year'][i], temp_df['low'][i] / 2, f'{temp_df["low"][i] * 100:.0f}%', ha='center', va='center', color='#323232', fontsize=10)
+                                                    
+                                                   
+                                                    ax.text(temp_df['year'][i], temp_df['low'][i] + temp_df['standard'][i] / 2, f'{temp_df["standard"][i] * 100:.0f}%', ha='center', va='center', color='#323232', fontsize=10)
+                                                    
+                                                   
+                                                    ax.text(temp_df['year'][i], temp_df['low'][i] + temp_df['standard'][i] + temp_df['high'][i] / 2, f'{temp_df["high"][i] * 100:.0f}%', ha='center', va='center', color='#323232', fontsize=10)
+
+                                               
                                                 ax.set_xlabel(None)
+                                                ax.set_xticks(temp_df['year'])
+                                                ax.set_xticklabels(temp_df['year'])
                                                 ax.set_ylabel(None)
+                                                ax.set_yticks([])
+                                                ax.set_title('Employees Salaries over the Years')
 
+                                                # Add legend
+                                                ax.legend()
                                                 return ax
 
                                             with ui.card(fillable=True, height=_HT):
@@ -582,11 +593,11 @@ with ui.nav_panel("Deep Dive"):
                                                     @render.ui
                                                     def kpi10():
 
-                                                        ovw = temp_df_main()[(temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD) & (temp_df_main()['salary_group'] == 1)]['Employee ID'].count()
+                                                        ovw = temp_df_main()[eval(_MAIN_FILTER_NOT_GONE) & (temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD) & (temp_df_main()['salary_group'] == 1)]['Employee ID'].count()
 
-                                                        return kpi('Overworked & Low Salary', ovw, integer=True)
+                                                        return kpi('Overworked & Underpaid', ovw, integer=True)
 
-                                                    ui.card_footer(f'*low salary defined as salary less than 12,000,000 per month')
+                                                    ui.card_footer(f'*salary classification adjusted to industry/title average on the particular year', style="font-size:.8rem;")
                                             
                                             with ui.card(fillable=True, height=_HT):
                                                 with ui.card(fillable=True, height="47%"):
@@ -606,11 +617,11 @@ with ui.nav_panel("Deep Dive"):
                                                     @render.ui
                                                     def kpi12():
 
-                                                        ovw = temp_df_main()[(temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD) & (temp_df_main()['salary_group'] == 1)]['Employee ID'].count()
+                                                        ovw = temp_df_main()[eval(_MAIN_FILTER_NOT_GONE) & (temp_df_main()['Average Hours Worked (Monthly)'] >= _OVER_THRESHOLD) & (temp_df_main()['salary_group'] == 1)]['Employee ID'].count()
 
-                                                        return kpi('Overworked & Low Salary', ovw, integer=True)
+                                                        return kpi('Overworked & Underpaid', ovw, integer=True)
 
-                                                    ui.card_footer(f'*low salary defined as salary less than 12,000,000 per month')
+                                                    ui.card_footer(f'*salary classification adjusted to industry/title average on the particular year', style="font-size:.8rem;")
                                                     
 
                                                     
