@@ -41,7 +41,7 @@ def get_df_main():
     df['prob'] = model.predict_proba(scaler.transform(transformed_df))[:,1]
     df['prob'] = df.apply(lambda x: None if x['gone'] else x['prob'], axis=1)
 
-    df['Leaving/Staying'] = df['prob'].apply(lambda x: 'Staying' if x < _THRESHOLD else 'Leaving')
+    df['Leaving/Staying'] = df['prob'].apply(lambda x: 'Staying' if x < _THRESHOLD else 'Leaving' if pd.notna(x) else None)
     df['salary_group'] = transformed_df['salary'].astype(int)
 
     bins = [0, 5, 7, 10] 

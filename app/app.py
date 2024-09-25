@@ -364,7 +364,7 @@ with ui.nav_panel("Deep Dive"):
                         with ui.sidebar():
                             
                             ui.tags.h5('Tabs')
-                            ui.input_select('tabs', None, ['Surveys', 'Employees'])
+                            ui.input_select('tabs', None, ['Surveys', 'Employees'],selected='Employees')
 
                             ui.tags.br()
 
@@ -400,7 +400,7 @@ with ui.nav_panel("Deep Dive"):
                                 if input.dept_3():
                                     temp_df = temp_df[temp_df['Department'].isin(list(input.dept_3()))]
 
-                                temp_df = temp_df[temp_df['Probability of Leaving'].between(input.pct_slider_2()[0]/200.0,input.pct_slider_2()[1]/100.0) | pd.isna(temp_df['Probability of Leaving'])]
+                                temp_df = temp_df[temp_df['Probability of Leaving'].between(input.pct_slider_2()[0]/100.0,input.pct_slider_2()[1]/100.0) | pd.isna(temp_df['Probability of Leaving'])]
 
                                 temp_df_main.set(temp_df)
 
@@ -523,11 +523,11 @@ with ui.nav_panel("Deep Dive"):
                                             def work_hours_plot():
                                                 temp_df = temp_df_main()[eval(_MAIN_FILTER_NOT_GONE)].copy()
 
-                                                temp_df = temp_df[['Department','Average Hours Worked (Monthly)']].groupby('Department').mean().reset_index()
+                                                temp_df = temp_df[['Department','Leaving/Staying','Average Hours Worked (Monthly)']].groupby(['Department', 'Leaving/Staying']).median().reset_index()
 
-                                                ax = sns.barplot(data=temp_df, palette=colors, x='Department', y='Average Hours Worked (Monthly)')
+                                                ax = sns.barplot(data=temp_df, x='Department', y='Average Hours Worked (Monthly)', hue='Leaving/Staying', palette = {'Leaving': '#FF4500', 'Staying': '#32CD32'})
 
-                                                ax.set_title('Average Hours Worked per Employee per Month')
+                                                ax.set_title('Hours Worked per Employee per Month (Median)')
                                                 for bar in ax.patches:
                                                     height = bar.get_height()
                                                     ax.text(
@@ -538,6 +538,7 @@ with ui.nav_panel("Deep Dive"):
                                                     )
                                                 ax.set_xlabel(None)
                                                 ax.set_ylabel(None)
+                                                ax.legend(title=None)
 
                                                 return ax
 
@@ -571,8 +572,8 @@ with ui.nav_panel("Deep Dive"):
                                                 ax.set_yticks([])
                                                 ax.set_title('Employees Salaries over the Years')
 
-                                                # Add legend
-                                                ax.legend()
+                                             
+                                                ax.legend(loc='upper left', bbox_to_anchor=(0, 1.1), ncol=3, frameon=False)
                                                 return ax
 
                                             with ui.card(fillable=True, height=_HT):
